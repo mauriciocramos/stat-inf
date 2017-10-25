@@ -1,13 +1,13 @@
 ---
 title: "Part I: Simulation Exercise"
 author: "Maurício Collaça"
-date: "October 19 2017"
+date: "October 24 2017"
 output: pdf_document
-geometry: margin=0.8in
+geometry: margin=0.5in
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.width = 4, fig.height = 2, fig.align = "center")
+knitr::opts_chunk$set(echo = TRUE, fig.width = 5, fig.height = 3, fig.align = "center")
 ```
 ## Introduction
 
@@ -23,65 +23,57 @@ The exponential distribution can be simulated in R with `rexp(n, lambda)` where 
 
 ### The exponential distribution
 
-The exponential distribution can be visualized by plotting a histogram of relatively large, e.g. 1000, random exponentials with a rate parameter $\lambda$ (lambda) equals to, for instance, 0.2. A random number generation seed is specified in order to ensure the reproducibility of the code results.  Overlaying the histogram and normal density curve of the data demonstrates the exponential distribution is not normally distributed, i.e., it's not close to a symmetric bell-shaped curve.
+The exponential distribution can be visualized by plotting a histogram of relatively large, e.g. 1000, random exponentials with a rate parameter $\lambda$ (lambda) equals to, for instance, 0.2. A random number generation seed is specified in order to ensure the reproducibility of the code results.  Overlaying the histogram and the normal curve of the data demonstrates the exponential distribution is not normally distributed, i.e., it's not close to a symmetric bell-shaped curve.
 
-**R code**
 ```{r}
+library(ggplot2)
 set.seed(1)
 nosim <- 1000; lambda <- 0.2
 exponentials <- data.frame(x = rexp(nosim, lambda))
-library(ggplot2)
 ggplot(exponentials, aes(x = x)) + xlab("Exponentials: rexp(n = 1000, rate = 0.2)") +
     geom_histogram(aes(y = ..density..), alpha = .2, binwidth = 1, color = "black") +
-    geom_vline(aes(xintercept = 1/lambda, color = "Theoretical")) +
-    geom_vline(aes(xintercept = mean(exponentials$x), color = "Empirical")) +
-    scale_color_manual("Mean", values = c(Theoretical="blue", Empirical="red")) +
+    geom_vline(aes(xintercept = mean(exponentials$x), color = "Empirical mean"), size=1) +
     stat_function(fun=dnorm, args=list(mean=mean(exponentials$x),
-                                       sd=sd(exponentials$x)),size=1,color="red") +
+                                       sd=sd(exponentials$x)),size=1,aes(color="Normal curve")) +
+    scale_color_manual(NULL, values = c("Empirical mean"="red", "Normal curve"="blue")) +
     ggtitle("Exponential distribution", paste(nosim, "random exponentials at rate", lambda))
 ```
 
-The empirical or sample mean of a relatively large sample aproximately estimates the theoretical or population mean `1/lambda`, which is `r 1/lambda`.
+The empirical or sample mean of a relatively large sample approximately estimates the theoretical or population mean `1/lambda` which is `r 1/lambda`.
 ```{r}
 mean(exponentials$x)
 ```
 
-The empirical or sample variance of a relatively large sample aproximately estimates the theoretical or population variance `(1/lambda)^2`, which is `r (1/lambda)^2`..
+The empirical or sample variance of a relatively large sample approximately estimates the theoretical or population variance `(1/lambda)^2` which is `r (1/lambda)^2`..
 ```{r}
 var(exponentials$x)
 ```
 
 ### The distribution of averages of random exponentials
 
-Random variables are said to be independent and identically distributed (IID) if they are independent and all are drawn from the same population, therefore, random exponentials are a case of IID variables.
+Random variables are said to be independent and identically distributed (IID) if they are independent and all are drawn from the same population, therefore, random exponentials are a case of IID variables.  The Central Limit Theorem (CLT) states that the distribution of averages of IID variables becomes that of a standard normal as the sample size increases.  This theorem can be visually demonstrated by plotting a histogram of a reasonably large (e.g. 1000) number of averages of a reasonably large (e.g. 40) sample size of random exponentials with a rate parameter $\lambda$ (lambda), for instance, equals to 0.2. Overlaying the histogram and the normal curve of the data demonstrates the CLT: the  distribution of averages of exponentials is normally distributed even when the population of exponentials is not normally distributed, as shown in the previous plot.
 
-The Central Limit Theorem (CLT) states that the distribution of averages of IID variables becomes that of a standard normal as the sample size increases.
-
-This theorem can be visually demonstrated by plotting a histogram of a reasonably large (e.g. 1000) number of averages of a reasonably large (e.g. 40) sample size of random exponentials with a rate parameter $\lambda$ (lambda), for instance, equals to 0.2. Overlaying the histogram and the normal density curve of the data demonstrates the CLT: the  distribution of averages of exponentials is normally distributed even when the population of exponentials is not normally distributed, as shown in the previous plot.
-
-**R code**
 ```{r}
 n <- 40
 avgs <- data.frame(x = sapply(1:nosim, function(x) mean(rexp(n,lambda))))
 library(ggplot2)
 g2 <- ggplot(avgs, aes(x = x)) +
     geom_histogram(aes(y = ..density..), alpha = .20, binwidth = .1, color = "black") +
+    geom_vline(aes(xintercept = mean(avgs$x), color = "Empirical mean"), size=1) +
     stat_function(fun = dnorm,
-                  args = list(mean = mean(avgs$x), sd = sd(avgs$x)), color = "red", size = 1) +
+                  args = list(mean = mean(avgs$x), sd = sd(avgs$x)),
+                  aes(color = "Normal curve"), size = 1) +
+    scale_color_manual(NULL, values = c("Empirical mean"="red", "Normal curve"="blue")) +
     xlab("Exponential Averages: mean(rexp(n = 40, rate = 0.2)") +
     ggtitle("Distribution of averages of exponentials")
 g2
 ```
-
-## Sample Mean versus Theoretical Mean
 
 The sampling distribution of the mean is centered around the population mean `1/lambda` which is `r 1/lambda`.
 
 ```{r}
 mean(avgs$x)
 ```
-
-## Sample Variance versus Theoretical Variance
 
 The variance of the sampling distribution of the mean is $\sigma^2/n$, where $\sigma^2$ is the variance of the population of being sampled from.  In the case of the exponential distribution population, $\sigma = (1/\lambda)$.
 
@@ -91,19 +83,19 @@ Therefore, the variance of the sampling distribution of the mean is much lower t
 ((1/lambda)^2)/n
 ```
 
-The following plot shows overlaid density curves of 1000 exponentials and 1000 averages of 40 exponentials.  One can see how less spread is the distribution of averages and how both curves are centered at 1/lambda. It also demonstrates the CLT: how the sampling distribution of the mean of IID exponential variables approximates the normal distribution. 
+The following plot shows overlaid normal curves of 1000 exponentials and 1000 averages of 40 exponentials.  One can see how less spread is the distribution of averages and how both curves are centered at 1/lambda. It also demonstrates the CLT: how the sampling distribution of the mean of IID exponential variables approximates the normal distribution. 
 
-**R code**
 ```{r}
 ggplot(data.frame(x=range(exponentials,avgs)), aes(x = x)) +
     stat_function(fun=dnorm, args=list(mean=mean(avgs$x), sd=sd(avgs$x)),
-                  size=2, aes(color="Averages of exponentials")) +
+                  size=1, aes(color="Averages of exponentials")) +
     stat_function(fun=dnorm, args=list(mean=mean(exponentials$x),
                                        sd = sd(exponentials$x)),
-                  size=2, aes(color="Exponentials")) +
-    scale_color_manual("Distributions",
-                       values = c("Exponentials"="red","Averages of exponentials"="blue")) + 
-    ylab("density") + xlab("Exponentials") + ggtitle("Overlaid density curves") +
-    theme(legend.position = "bottom")
+                  size=1, aes(color="Exponentials")) +
+    scale_color_manual(NULL, values = c("Exponentials"="red","Averages of exponentials"="blue")) + 
+    ylab("density") + xlab("Exponentials") + ggtitle("Overlaid normal curves")
 ```
 
+## Conclusion
+
+As demonstrated in the previous section, the conclusion is that the exponential distribution population is not normally distributed but as per stated by the Central Limit Theorem, their sampling distribution of the mean approximates a normal distribution because of the number of simulations (1000) and the random exponential variable is independent and identically distributed (IID).

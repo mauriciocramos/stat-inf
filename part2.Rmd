@@ -1,0 +1,111 @@
+---
+title: 'Part 2: Basic Inferential Data Analysis'
+author: "Maurício Collaça"
+date: "October 24 2017"
+output: pdf_document
+geometry: margin=0.5in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 5, fig.height = 3, fig.align = "center")
+```
+
+## Overview
+
+An analysis of the ToothGrowth data from the R datasets through exploratory data analysis and comparison of the tooth growth by supp and dose using multiple hypothesis testing.  The ToothGrowth data is about the Effect of Vitamin C on tooth growth in pigs. The dependent variable is the length found in 60 pigs. Each animal received one of dose levels of treatment (0.5, 1, and 2 mg/day) by one of two delivery methods: orange juice or vitamin C.
+
+## Exploratory data analyses
+
+ToothGrowth is a data frame with `r nrow(ToothGrowth)` observations on `r length(ToothGrowth)` variables:
+```{r message=FALSE, warning=FALSE, comment=""}
+library(ggplot2); library(dplyr)
+data("ToothGrowth")
+str(ToothGrowth)
+```
+
+Some assumptions about the data:
+
+* It's a randomized trial or AB test with no placebo group.
+* Length is a continuous variable, supplement is a categorical nominal variable and dose is categorical ordinal variable.
+* There is an interaction between Supplement and Dose.
+* There are no missing values or unexpected supplements or dose levels.
+
+The following boxplot shows tooth length (y) by dose (x) split by supplement.  The line shows mean variation between groups.  It increases as doses increase, but at different rates between supplements.
+
+```{r}
+data <- ToothGrowth %>% group_by(supp, dose) %>% mutate(mean = mean(len))
+ggplot(data, aes(x=dose, y=len, group=dose, fill=factor(dose))) + facet_grid(~ supp) +
+    geom_boxplot() + geom_line(aes(y=mean, group=NA, color="Mean"), size=1) +
+    scale_color_manual(NULL, values = c(Mean="red")) + xlab("Dose (mg/day)") + ylab("Length")
+```
+
+It suggests null hypothesis that group means are all equal is not true and it must pass through formal multiple hypothesis test.
+
+## Summary of the data
+
+Based on the assumptions made so far, a basic summary of the data that supports the exploratory plots and a multiple hypothesis test design contains the following statistics broken down by supplement type and dose:
+```{r}
+ToothGrowth %>% group_by(supp, dose) %>%
+    summarize(count=n(), mean=mean(len), variance=var(len)) %>% knitr::kable()
+```
+
+## Tooth growth comparison
+
+### Hypothesis formulation
+
+The null hypothesis is that all of the means of supplement doses are equal, i.e., neither the supplement type being orange juice or vitamin C or their doses being 0.5, 1 or 2 mg/day would make any difference in the tooth growth.
+$$H_0: \mu_{OJ,0.5}=\mu_{OJ,1}=\mu_{OJ,2}=\mu_{VC,0.5}=\mu_{VC,1}=\mu_{VC,2}$$
+The alternative hypothesis is at least one of the means of supplement doses are different from the others, i.e., either the supplement type or a specific dose would make a difference in the tooth growth.
+$$H_1: \mu_{OJ,0.5}\neq\mu_{OJ,1}\neq\mu_{OJ,2}\neq\mu_{VC,0.5}\neq\mu_{VC,1}\neq\mu_{VC,2}$$
+
+The relevant hypothesis test is a t-test for independent groups based on this assumptions:
+
+* The sample size is relatively small: 10 for each group
+* The samples are independent
+
+The tests to be performed are a combination of existing 6 levels of supplement and dose, taken two at a time:
+```{r, comment=""}
+ToothGrowth$group <- paste0(ToothGrowth$supp, ToothGrowth$dose)
+glimpse(tests <- as.data.frame(t(combn(unique(ToothGrowth$group), 2))))
+```
+
+### Multiple hypothesis t-tests
+
+The following idiom performs the multiple t-test for the `r nrow(tests)` combinations.
+```{r}
+tests <- tests %>%
+    group_by(V1,V2) %>%
+    mutate(pval = t.test(subset(ToothGrowth, group==V1, "len"),
+                         subset(ToothGrowth, group==V2, "len"))$p.value) %>%
+    ungroup() %>% arrange(pval)
+```
+
+### False discoveries control
+
+As there are multiple hypothesis, tests must be corrected to avoid false positives or discoveries.  The approach used is to calculate adjusted p-values with these methods:
+
+* Family-Wise Error Rate (FWER) using "bonferroni" correction
+* False Discovery Rate (FDR) using "BH" and "BY" corrections
+
+The following idiom calculates adjusted p-values by the three methods, each with different null hypothesis result.  The true discoveries are the ones whose $H_0$ is `FALSE`.
+```{r}
+tests <- tests %>%
+    mutate(uncorrected.H0 = pval >= 0.05, BF.pval = p.adjust(pval, method = "bonferroni"),
+           BF.H0 = BF.pval >= 0.05, BH.pval = p.adjust(pval, method = "BH"),
+           BH.H0 = BH.pval >= 0.05, BY.pval = p.adjust(pval, method = "BY"),
+           BY.H0 = BY.pval >= 0.05)
+tests %>% knitr::kable(col.names = c("$\\mu_1$", "$\\mu_2$", "p-value", "Uncorrected $H_0$?",
+                                     "Bonferroni", "$H_0$?", "BH", "$H_0$?", "BY", "$H_0$?"))
+```
+
+## Conclusions
+
+The exploration data analysis suggested a mean variation between groups that increases as doses increase, but at different rates between supplements.  The null hypothesis that group means are all equal is true which leads to a multiple hypothesis t-test for independent groups. As a multiple tests must be corrected in order to avoid false discoveries, it's been decide to apply three types of corrections and compare them.  
+
+Without any error correction, it's found `r (discoveries <- sum(!tests$uncorrected.H0))` discoveries.
+
+Boferroni adjustment (FWER) found `r sum(!tests$BF.H0)` discoveries which means that `r sum(!tests$uncorrected.H0)-sum(!tests$BF.H0)` were false discoveries.
+
+BH adjustment (FDR) found `r sum(!tests$BH.H0)` discoveries which means that `r sum(!tests$uncorrected.H0)-sum(!tests$BH.H0)` were false discoveries.
+
+BY adjustment (FDR) found `r sum(!tests$BY.H0)` discoveries which means that `r sum(!tests$uncorrected.H0)-sum(!tests$BY.H0)` were false discoveries.
